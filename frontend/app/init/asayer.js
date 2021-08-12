@@ -8,7 +8,7 @@ import trackerAssist from '@openreplay/tracker-assist';
 // import { LOGIN, RESET_PASSWORD, REQUEST_RESET_PASSWORD, UPDATE_PASSWORD } from 'Duck/user';
 
 const a = new Asayer({
-	projectID: window.ENV.TRACKER_PROJECT_ID,	
+	projectKey: window.ENV.TRACKER_PROJECT_ID,	
 	ingestPoint: window.ENV.TRACKER_SERVER_URL,
 });
 
