@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "@openreplay/tracker": "^3.2.0",
+    "@openreplay/tracker-assist": "^3.0.0",
     "react-draggable": "^4.4.3"
   }
 }
