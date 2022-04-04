@@ -36,12 +36,12 @@ func insertMessage(sessionID uint64, msg Message) error {
 		return pg.InsertWebPageEvent(sessionID, m)
 	case *ErrorEvent:
 		return pg.InsertWebErrorEvent(sessionID, m)
-	case *FetchEvent:
-		return pg.InsertWebFetchEvent(sessionID, m)
-	case *GraphQLEvent:
-		return pg.InsertWebGraphQLEvent(sessionID, m)
+	// case *FetchEvent:
+	// 	return pg.InsertWebFetchEvent(sessionID, m)
+	// case *GraphQLEvent:
+	// 	return pg.InsertWebGraphQLEvent(sessionID, m)
 
-		// IOS
+	// IOS
 	case *IOSSessionStart:
 		return pg.InsertIOSSessionStart(sessionID, m)
 	case *IOSSessionEnd:
