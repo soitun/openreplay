@@ -31,6 +31,7 @@ func main() {
 
 	statsLogger := logger.NewQueueStats(env.Int("LOG_QUEUE_STATS_INTERVAL_SEC"))
 
+	lll := true
 	consumer := queue.NewMessageConsumer(
 		env.String("GROUP_DB"),
 		[]string{
@@ -38,6 +39,9 @@ func main() {
 			env.String("TOPIC_TRIGGER"),
 		},
 		func(sessionID uint64, msg messages.Message, meta *types.Meta) {
+			if lll {
+				log.Printf("handlwe message")
+			}
 			statsLogger.HandleAndLog(sessionID, meta)
 
 			if err := insertMessage(sessionID, msg); err != nil {
@@ -46,6 +50,9 @@ func main() {
 				}
 				return
 			}
+			if lll {
+				log.Printf("inserted")
+			}
 
 			session, err := pg.GetSession(sessionID)
 			if err != nil {
@@ -53,10 +60,16 @@ func main() {
 				log.Printf("Error on session retrieving from cache: %v, SessionID: %v, Message: %v", err, sessionID, msg)
 				return
 			}
+			if lll {
+				log.Printf("got session")
+			}
 
 			err = insertStats(session, msg)
 			if err != nil {
 				log.Printf("Stats Insertion Error %v; Session: %v, Message: %v", err, session, msg)
+			}
+			if lll {
+				log.Printf("stats inserted")
 			}
 
 			heurFinder.HandleMessage(session, msg)
@@ -73,6 +86,11 @@ func main() {
 					log.Printf("Stats Insertion Error %v; Session: %v,  Message %v", err, session, msg)
 				}
 			})
+			if lll {
+				log.Printf("stats inserted")
+				lll = false
+			}
+
 		},
 		false,
 	)
@@ -90,14 +108,18 @@ func main() {
 			consumer.Close()
 			os.Exit(0)
 		case <-tick:
+			log.Printf("Tick. Committing PG Batches")
 			pg.CommitBatches()
+			log.Printf("Tick. Committing Stats")
 			if err := commitStats(); err != nil {
 				log.Printf("Error on stats commit: %v", err)
 			}
+			log.Printf("Tick. Committing consumer")
 			// TODO?: separate stats & regular messages
 			if err := consumer.Commit(); err != nil {
 				log.Printf("Error on consumer commit: %v", err)
 			}
+			log.Printf("Tick. Commit done")
 		default:
 			err := consumer.ConsumeNext()
 			if err != nil {
