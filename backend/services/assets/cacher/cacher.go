@@ -69,7 +69,7 @@ func (c *cacher) cacheURL(requestURL string, sessionID uint64, depth byte, conte
 		return
 	}
 	defer res.Body.Close()
-	if res.StatusCode != 200 {
+	if res.StatusCode >= 400 {
 		// TODO: retry
 		c.Errors <- errors.Wrap(fmt.Errorf("Status code is %v, ", res.StatusCode), context)
 		return
