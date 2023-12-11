@@ -808,7 +808,6 @@ def search_query_parts_ch(data: schemas.SessionsSearchPayloadSchema, error_statu
         events_conditions_not = []
         event_index = 0
         or_events = data.events_order == schemas.SearchEventOrder._or
-        # events_joiner = " UNION " if or_events else " INNER JOIN LATERAL "
         for i, event in enumerate(data.events):
             event_type = event.type
             is_any = _isAny_opreator(event.operator)
@@ -839,11 +838,11 @@ def search_query_parts_ch(data: schemas.SessionsSearchPayloadSchema, error_statu
             #         event_where.append(f"event_{event_index - 1}.datetime <= main.datetime")
             e_k = f"e_value{i}"
             s_k = e_k + "_source"
-            if True or event.type != schemas.PerformanceEventType.time_between_events:
-                event.value = helper.values_for_operator(value=event.value, op=event.operator)
-                full_args = {**full_args,
-                             **_multiple_values(event.value, value_key=e_k),
-                             **_multiple_values(event.source, value_key=s_k)}
+
+            event.value = helper.values_for_operator(value=event.value, op=event.operator)
+            full_args = {**full_args,
+                         **_multiple_values(event.value, value_key=e_k),
+                         **_multiple_values(event.source, value_key=s_k)}
 
             if event_type == events.EventType.CLICK.ui_type:
                 event_from = event_from % f"{MAIN_EVENTS_TABLE} AS main "
@@ -1087,7 +1086,7 @@ def search_query_parts_ch(data: schemas.SessionsSearchPayloadSchema, error_statu
                 full_args = {**full_args, **_multiple_values(event.source, value_key=e_k)}
 
                 event_where.append(f"isNotNull({tname}.{colname}) AND {tname}.{colname}>0 AND " +
-                                   _multiple_conditions(f"{tname}.{colname} {event.sourceOperator.value} %({e_k})s",
+                                   _multiple_conditions(f"{tname}.{colname} {event.sourceOperator} %({e_k})s",
                                                         event.source, value_key=e_k))
                 events_conditions[-1]["condition"].append(event_where[-1])
                 events_conditions[-1]["condition"] = " AND ".join(events_conditions[-1]["condition"])
@@ -1110,7 +1109,7 @@ def search_query_parts_ch(data: schemas.SessionsSearchPayloadSchema, error_statu
                 full_args = {**full_args, **_multiple_values(event.source, value_key=e_k)}
 
                 event_where.append(f"isNotNull({tname}.{colname}) AND {tname}.{colname}>0 AND " +
-                                   _multiple_conditions(f"{tname}.{colname} {event.sourceOperator.value} %({e_k})s",
+                                   _multiple_conditions(f"{tname}.{colname} {event.sourceOperator} %({e_k})s",
                                                         event.source, value_key=e_k))
                 events_conditions[-1]["condition"].append(event_where[-1])
                 events_conditions[-1]["condition"] = " AND ".join(events_conditions[-1]["condition"])
@@ -1162,7 +1161,7 @@ def search_query_parts_ch(data: schemas.SessionsSearchPayloadSchema, error_statu
             #     #     _multiple_conditions(f"main2.timestamp - main.timestamp {event.sourceOperator} %({e_k})s",
             #     #                          event.source, value_key=e_k))
             #     # events_conditions[-2]["time"] = f"(?t{event.sourceOperator} %({e_k})s)"
-            #     events_conditions[-2]["time"] = _multiple_conditions(f"?t{event.sourceOperator.value}%({e_k})s",
+            #     events_conditions[-2]["time"] = _multiple_conditions(f"?t{event.sourceOperator}%({e_k})s",
             #                                                          event.source, value_key=e_k)
             #     event_index += 1
             # TODO: no isNot for RequestDetails
@@ -1297,7 +1296,6 @@ def search_query_parts_ch(data: schemas.SessionsSearchPayloadSchema, error_statu
             # limit THEN-events to 7 in CH because sequenceMatch cannot take more arguments
             if event_index == 7 and data.events_order == schemas.SearchEventOrder._then:
                 break
-
         if event_index < 2:
             data.events_order = schemas.SearchEventOrder._or
         if len(events_extra_join) > 0:
@@ -1335,8 +1333,8 @@ def search_query_parts_ch(data: schemas.SessionsSearchPayloadSchema, error_statu
             if len(events_conditions) > 0:
                 events_conditions_where.append(f"({' OR '.join([c for c in type_conditions])})")
             del type_conditions
-            if len(value_conditions) > 0:
-                events_conditions_where.append(f"({' OR '.join([c for c in value_conditions])})")
+            # if len(value_conditions) > 0:
+            #     events_conditions_where.append(f"({' OR '.join([c for c in value_conditions])})")
             del value_conditions
             if len(events_conditions_not) > 0:
                 _value_conditions_not = []
@@ -1347,10 +1345,11 @@ def search_query_parts_ch(data: schemas.SessionsSearchPayloadSchema, error_statu
                     if _p not in _value_conditions_not:
                         _value_conditions_not.append(_p)
                         value_conditions_not.append(p)
-                value_conditions_not = [f"sub.{c}" for c in __events_where_basic] + value_conditions_not
+
                 sub_join = f"""LEFT ANTI JOIN ( SELECT DISTINCT sub.session_id
                                     FROM {MAIN_EVENTS_TABLE} AS sub
-                                    WHERE {' AND '.join([c for c in value_conditions_not])}) AS sub USING(session_id)"""
+                                    WHERE {' AND '.join(__events_where_basic)}
+                                        AND ({' OR '.join([c for c in value_conditions_not])})) AS sub USING(session_id)"""
                 del _value_conditions_not
                 del value_conditions_not
 
@@ -1374,11 +1373,10 @@ def search_query_parts_ch(data: schemas.SessionsSearchPayloadSchema, error_statu
             for c in events_conditions:
                 if c['type'] not in type_conditions:
                     type_conditions.append(c['type'])
-
-                sequence_conditions.append(c['type'])
                 if c.get('condition'):
                     has_values = True
-                    sequence_conditions[-1] += " AND " + c["condition"]
+                    sequence_conditions.append(c['type'] + " AND " + c["condition"])
+
             if len(events_conditions) > 0:
                 events_conditions_where.append(f"({' OR '.join([c for c in type_conditions])})")
 
@@ -1387,17 +1385,22 @@ def search_query_parts_ch(data: schemas.SessionsSearchPayloadSchema, error_statu
                 _value_conditions_not = []
                 value_conditions_not = []
                 for c in events_conditions_not:
-                    p = f"{c['type']} AND not({c['condition']})".replace("sub.", "main.")
+                    p = f"{c['type']} AND {c['condition']}".replace("sub.", "main.")
                     _p = p % full_args
                     if _p not in _value_conditions_not:
                         _value_conditions_not.append(_p)
                         value_conditions_not.append(p)
                 del _value_conditions_not
                 sequence_conditions += value_conditions_not
+                events_extra_join += f"""LEFT ANTI JOIN ( SELECT DISTINCT session_id
+                                        FROM {MAIN_EVENTS_TABLE} AS main
+                                        WHERE {' AND '.join(__events_where_basic)}
+                                            AND ({' OR '.join(value_conditions_not)})) AS sub USING(session_id)"""
 
-            if has_values:
-                events_conditions = [c for c in list(set(sequence_conditions))]
-                events_conditions_where.append(f"({' OR '.join(events_conditions)})")
+            # if has_values:
+            #     events_conditions = [c for c in list(set(sequence_conditions))]
+            #     events_conditions_where.append(f"({' OR '.join(events_conditions)})")
+
             events_query_part = f"""SELECT main.session_id,
                                         MIN(main.datetime) AS first_event_ts,
                                         MAX(main.datetime) AS last_event_ts
